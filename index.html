@@ -99,6 +99,29 @@
       text-transform: uppercase;
     }
     .field-label .meta { font-weight: 500; text-transform: none; font-family: var(--mono); }
+    .label-right { display: flex; align-items: center; gap: 10px; }
+
+    .clear-btn {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font-family: var(--sans);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: color .15s, background .15s, opacity .15s;
+    }
+    .clear-btn:hover { color: var(--danger); background: rgba(255,90,90,0.10); }
+    .clear-btn:active { transform: scale(0.95); }
+    .clear-btn svg { width: 14px; height: 14px; }
+    .clear-btn[disabled] { opacity: 0.4; cursor: default; pointer-events: none; }
 
     .pw-row { position: relative; }
 
@@ -293,7 +316,16 @@
   <div class="group">
     <div class="field-label">
       <span>Текст / шифр</span>
-      <span class="meta" id="inLen">0</span>
+      <span class="label-right">
+        <span class="meta" id="inLen">0</span>
+        <button type="button" class="clear-btn" id="clearBtn" onclick="clearInput()" aria-label="Очистить поле" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+          Очистить
+        </button>
+      </span>
     </div>
     <textarea id="input" placeholder="Введите текст для шифрования — или вставьте ASCII-шифр для расшифровки"
               autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
@@ -515,10 +547,24 @@ function showToast(msg) {
   toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
 }
 
-/* live char counter */
-document.getElementById("input").addEventListener("input", function () {
-  document.getElementById("inLen").textContent = this.value.length;
-});
+/* clear the input field */
+function clearInput() {
+  const input = document.getElementById("input");
+  input.value = "";
+  updateInputMeta();
+  input.focus();
+  setStatus("Поле очищено.", "ok");
+}
+
+/* live char counter + clear-button state */
+function updateInputMeta() {
+  const input = document.getElementById("input");
+  document.getElementById("inLen").textContent = input.value.length;
+  document.getElementById("clearBtn").disabled = input.value.length === 0;
+}
+
+document.getElementById("input").addEventListener("input", updateInputMeta);
+updateInputMeta();
 </script>
 </body>
 </html>
