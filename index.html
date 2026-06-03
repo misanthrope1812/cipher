@@ -108,6 +108,9 @@
     .copy:active { transform: scale(0.96); }
     .copy.done { border-color: var(--accent); color: var(--accent); }
     .copy svg { width: 17px; height: 17px; }
+    .revive { display: none; border-color: var(--accent); color: var(--accent); }
+    body.chat .revive { display: inline-flex; }
+    .revive:disabled { opacity: .55; cursor: default; }
     .clear {
       border: 1.5px solid var(--border); background: transparent; color: var(--muted);
       border-radius: 10px; padding: 7px 12px; font-size: 12.5px; font-weight: 700;
@@ -200,6 +203,13 @@
     <div class="out-head">
       <div class="field-label"><span>Результат</span></div>
       <div class="out-tools">
+        <button class="copy revive" id="reviveBtn" type="button" onclick="reviveText()" title="Сделать текст живым через ИИ">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/>
+          </svg>
+          <span id="reviveLabel">Оживить</span>
+        </button>
         <button class="clear" type="button" onclick="clearField('output')" aria-label="Очистить результат">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                stroke-linecap="round" stroke-linejoin="round">
@@ -236,6 +246,7 @@
    ====================================================================== */
 
 let mode = "chat";
+let lastChunks = null;   // последняя зашифрованная цепочка (для AI-оживления)
 
 /* ============================ ASCII режим ============================ */
 const ALPHABET = ["!","@","#","$","%","^","&","*","(",")","-","_","=","+","[","]"];
@@ -404,7 +415,8 @@ async function chatEncrypt(password, text) {
   const { key, iv } = await chatDeriveKeyIv(password, salt);
   const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv, tagLength: TAG_BITS }, key, payload));
   const pkg = new Uint8Array(SALT_LEN + ct.length); pkg.set(salt, 0); pkg.set(ct, SALT_LEN);
-  return chunksToText(bytesToChunks(pkg));
+  lastChunks = bytesToChunks(pkg);
+  return chunksToText(lastChunks);
 }
 async function chatDecrypt(password, cover) {
   const pkg = chunksToBytes(textToChunks(cover));
@@ -415,6 +427,86 @@ async function chatDecrypt(password, cover) {
   const flag = payload[0]; let bodyB = payload.slice(1);
   if (flag === 1) { if (!HAS_CS) throw new Error("Сообщение сжато, но браузер не умеет распаковывать."); bodyB = await inflateRaw(bodyB); }
   return new TextDecoder().decode(bodyB);
+}
+
+/* ============================ AI «оживление» текста ============================ */
+const AI = {
+  // ВАЖНО: Gemini НЕ работает напрямую из браузера (блокирует CORS), поэтому
+  // по умолчанию используем OpenRouter — он разрешает запросы со страницы.
+  provider: "openai",
+  apiKey: "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",   // <<< вставь сюда ключ OpenRouter (вида sk-or-...), бесплатно на openrouter.ai → Keys
+  openaiEndpoint: "https://openrouter.ai/api/v1/chat/completions",
+  openaiModel: "meta-llama/llama-4-scout:free",
+  // (Gemini оставлен на случай, если поднимешь серверный прокси; из браузера напрямую он не зовётся)
+  geminiModel: "gemini-2.5-flash-lite"
+};
+const AI_CATS = ["A", "N", "V", "T"];   // чередуем части речи для разнообразия
+function chunksToWords(chunks) {
+  return chunks.map((v, i) => LISTS[AI_CATS[i % AI_CATS.length]][v]);
+}
+function sameWords(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+function buildPrompt(words) {
+  return "Ты пишешь короткое неформальное сообщение в чат от первого лица (парень, разговорный стиль).\n" +
+    "Вставь ВСЕ слова из списка ниже РОВНО в этом порядке и БЕЗ ИЗМЕНЕНИЙ (не склонять, не менять окончания, ничего не пропускать).\n" +
+    "Между ними добавляй ТОЛЬКО служебные слова: предлоги, союзы, местоимения, частицы, междометия. " +
+    "НЕ добавляй никаких других существительных, глаголов, прилагательных или наречий.\n" +
+    "Можно ставить знаки препинания, смайлики из скобок и переносы строк. В ответе верни ТОЛЬКО текст сообщения.\n\n" +
+    "Слова по порядку: " + words.join(", ");
+}
+async function callLLM(prompt) {
+  if (!AI.apiKey) throw new Error("нет ключа");
+  if (AI.provider === "gemini") {
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/" +
+      AI.geminiModel + ":generateContent?key=" + encodeURIComponent(AI.apiKey);
+    const r = await fetch(url, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.9, maxOutputTokens: 700 } })
+    });
+    if (!r.ok) throw new Error("Gemini HTTP " + r.status);
+    const d = await r.json();
+    return ((((d.candidates || [])[0] || {}).content || {}).parts || [{}])[0].text ? d.candidates[0].content.parts[0].text.trim() : "";
+  } else {
+    const r = await fetch(AI.openaiEndpoint, {
+      method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + AI.apiKey },
+      body: JSON.stringify({ model: AI.openaiModel, temperature: 0.9, max_tokens: 700, messages: [{ role: "user", content: prompt }] })
+    });
+    if (!r.ok) throw new Error("LLM HTTP " + r.status);
+    const d = await r.json();
+    return ((((d.choices || [])[0] || {}).message || {}).content || "").trim();
+  }
+}
+function setReviveLoading(on) {
+  const b = document.getElementById("reviveBtn");
+  if (!b) return;
+  b.disabled = on;
+  document.getElementById("reviveLabel").textContent = on ? "…" : "Оживить";
+}
+async function reviveText() {
+  if (mode !== "chat") return;
+  if (!lastChunks) return setStatus("Сначала зашифруйте сообщение в чат-режиме.", "err");
+  if (!AI.apiKey) return setStatus("Вставьте ключ в код (AI.apiKey).", "err");
+  const target = chunksToWords(lastChunks);
+  const prompt = buildPrompt(target);
+  setReviveLoading(true);
+  setStatus("Генерирую живой текст…", "");
+  try {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      let out;
+      try { out = await callLLM(prompt); }
+      catch (e) { setStatus("Ошибка ИИ: " + e.message + " — оставил обычный вариант.", "err"); return; }
+      const extracted = (out.toLowerCase().match(/[а-яё]+/g) || []).filter(w => w in WORD2VAL);
+      if (sameWords(extracted, target)) {
+        document.getElementById("output").value = out;
+        setStatus("Оживлено ✓ — расшифровка работает как обычно.", "ok");
+        return;
+      }
+    }
+    setStatus("ИИ не уложился в схему за 3 попытки — оставил обычный вариант.", "err");
+  } finally { setReviveLoading(false); }
 }
 
 /* ============================ Диспетчеры ============================ */
