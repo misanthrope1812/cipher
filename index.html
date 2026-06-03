@@ -131,6 +131,25 @@
       pointer-events: none; transition: opacity .25s, transform .25s; z-index: 50; max-width: 90vw;
     }
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    .ai-box {
+      display: none; margin: 0 0 18px; padding: 13px; border: 1.5px solid var(--border);
+      border-radius: 13px; background: rgba(24,28,26,0.72);
+    }
+    body.chat .ai-box { display: block; }
+    .ai-box .ai-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 9px; }
+    .ai-title { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.3px; }
+    .ai-state { font-size: 12.5px; font-family: var(--mono); color: var(--muted); }
+    .ai-row { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; }
+    .ai-row input { min-height: 44px; padding: 11px 12px; font-family: var(--mono); font-size: 14px; }
+    .ai-small {
+      border: 1.5px solid var(--border); background: transparent; color: var(--text);
+      border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 700;
+      font-family: var(--sans); cursor: pointer; min-height: 44px;
+    }
+    .ai-small:hover { border-color: var(--accent); color: var(--accent); }
+    .ai-help { margin: 8px 2px 0; font-size: 12.5px; color: var(--muted); }
+    @media (max-width: 520px) { .ai-row { grid-template-columns: 1fr; } }
     footer { margin-top: 26px; text-align: center; color: #5c655c; font-size: 12px; font-family: var(--mono); }
     @media (max-width: 360px) { .btn-row { grid-template-columns: 1fr; } }
   </style>
@@ -149,6 +168,21 @@
   </div>
 
   <p class="note" id="note"></p>
+
+
+  <div class="ai-box" id="aiBox">
+    <div class="ai-head">
+      <div class="ai-title">ИИ-оживление</div>
+      <div class="ai-state" id="aiKeyState">ключ не сохранён</div>
+    </div>
+    <div class="ai-row">
+      <input id="aiKeyInput" type="password" placeholder="OpenRouter API key: sk-or-..." autocomplete="off"
+             autocapitalize="off" autocorrect="off" spellcheck="false">
+      <button class="ai-small" type="button" onclick="saveAiKey()">Сохранить</button>
+      <button class="ai-small" type="button" onclick="forgetAiKey()">Удалить</button>
+    </div>
+    <div class="ai-help">Ключ хранится только в этом браузере. В HTML и на GitHub он не записывается.</div>
+  </div>
 
   <div class="group">
     <div class="field-label"><span>Пароль</span></div>
@@ -434,12 +468,42 @@ const AI = {
   // ВАЖНО: Gemini НЕ работает напрямую из браузера (блокирует CORS), поэтому
   // по умолчанию используем OpenRouter — он разрешает запросы со страницы.
   provider: "openai",
-  apiKey: "",   // <<< вставь сюда ключ OpenRouter (вида sk-or-...), бесплатно на openrouter.ai → Keys
+  apiKey: "",   // не вшивай ключ сюда: пользователь вводит его в интерфейсе, сохранение идёт в localStorage
   openaiEndpoint: "https://openrouter.ai/api/v1/chat/completions",
-  openaiModel: "meta-llama/llama-4-scout:free",
+  openaiModel: "openrouter/free",
   // (Gemini оставлен на случай, если поднимешь серверный прокси; из браузера напрямую он не зовётся)
   geminiModel: "gemini-2.5-flash-lite"
 };
+
+const AI_KEY_STORAGE = "uvb88_openrouter_api_key";
+function getAiKey() {
+  return localStorage.getItem(AI_KEY_STORAGE) || "";
+}
+function updateAiKeyState() {
+  const state = document.getElementById("aiKeyState");
+  const input = document.getElementById("aiKeyInput");
+  if (!state) return;
+  const key = getAiKey();
+  state.textContent = key ? "ключ сохранён" : "ключ не сохранён";
+  state.style.color = key ? "var(--accent)" : "var(--muted)";
+  if (input && key && !input.value) input.placeholder = "Ключ сохранён в браузере";
+}
+function saveAiKey() {
+  const input = document.getElementById("aiKeyInput");
+  const key = (input && input.value ? input.value : "").trim();
+  if (!key) return setStatus("Вставьте API key OpenRouter.", "err");
+  localStorage.setItem(AI_KEY_STORAGE, key);
+  if (input) input.value = "";
+  updateAiKeyState();
+  setStatus("API key сохранён только в этом браузере.", "ok");
+}
+function forgetAiKey() {
+  localStorage.removeItem(AI_KEY_STORAGE);
+  const input = document.getElementById("aiKeyInput");
+  if (input) input.value = "";
+  updateAiKeyState();
+  setStatus("API key удалён из этого браузера.", "ok");
+}
 const AI_CATS = ["A", "N", "V", "T"];   // чередуем части речи для разнообразия
 function chunksToWords(chunks) {
   return chunks.map((v, i) => LISTS[AI_CATS[i % AI_CATS.length]][v]);
@@ -458,10 +522,11 @@ function buildPrompt(words) {
     "Слова по порядку: " + words.join(", ");
 }
 async function callLLM(prompt) {
-  if (!AI.apiKey) throw new Error("нет ключа");
+  const apiKey = getAiKey() || AI.apiKey;
+  if (!apiKey) throw new Error("нет ключа");
   if (AI.provider === "gemini") {
     const url = "https://generativelanguage.googleapis.com/v1beta/models/" +
-      AI.geminiModel + ":generateContent?key=" + encodeURIComponent(AI.apiKey);
+      AI.geminiModel + ":generateContent?key=" + encodeURIComponent(apiKey);
     const r = await fetch(url, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.9, maxOutputTokens: 700 } })
@@ -471,7 +536,7 @@ async function callLLM(prompt) {
     return ((((d.candidates || [])[0] || {}).content || {}).parts || [{}])[0].text ? d.candidates[0].content.parts[0].text.trim() : "";
   } else {
     const r = await fetch(AI.openaiEndpoint, {
-      method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + AI.apiKey },
+      method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiKey, "HTTP-Referer": location.origin || "https://github.io", "X-Title": "UVB-88" },
       body: JSON.stringify({ model: AI.openaiModel, temperature: 0.9, max_tokens: 700, messages: [{ role: "user", content: prompt }] })
     });
     if (!r.ok) throw new Error("LLM HTTP " + r.status);
@@ -488,7 +553,7 @@ function setReviveLoading(on) {
 async function reviveText() {
   if (mode !== "chat") return;
   if (!lastChunks) return setStatus("Сначала зашифруйте сообщение в чат-режиме.", "err");
-  if (!AI.apiKey) return setStatus("Вставьте ключ в код (AI.apiKey).", "err");
+  if (!(getAiKey() || AI.apiKey)) return setStatus("Сначала вставьте и сохраните OpenRouter API key в блоке ИИ-оживления.", "err");
   const target = chunksToWords(lastChunks);
   const prompt = buildPrompt(target);
   setReviveLoading(true);
@@ -629,6 +694,7 @@ document.addEventListener("touchend", function (event) {
   lastTouchEnd = now;
 }, { passive: false });
 
+updateAiKeyState();
 setMode("chat");
 </script>
 </body>
