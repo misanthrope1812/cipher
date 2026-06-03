@@ -293,7 +293,8 @@
    ====================================================================== */
 
 let mode = "chat";
-let lastChunks = null;   // последняя зашифрованная цепочка (для AI-оживления)
+let lastChunks = null;       // legacy-цепочка слов для старых чат-обложек
+let lastChatPackage = null;  // последний зашифрованный пакет для скрытой AI-обложки
 
 /* ============================ ASCII режим ============================ */
 const ALPHABET = ["!","@","#","$","%","^","&","*","(",")","-","_","=","+","[","]"];
@@ -421,6 +422,50 @@ function chunksToBytes(chunks) {
   for (let i = 0; i < n; i++) b[i] = parseInt(bits.slice(i * 8, i * 8 + 8), 2);
   return b;
 }
+const STEALTH_ZERO = "\u200C";
+const STEALTH_ONE = "\u200D";
+const STEALTH_START = "\u2063\u2063\u2060";
+const STEALTH_END = "\u2060\u2063\u2063";
+const STEALTH_CHARS_RE = /[\u200C\u200D\u2060\u2063]/g;
+const LOCAL_COVERS = [
+  "слушай, я тут пока ехал, вспомнил одну странную деталь, потом расскажу нормально.",
+  "я сегодня немного выпал из режима, но в целом все спокойно, просто день какой-то шумный.",
+  "короче, добрался без приключений, сейчас разберусь с делами и напишу подробнее.",
+  "у меня тут внезапно образовалось окно, так что я пока на связи, если что.",
+  "кажется, вечер будет тише, чем ожидалось, но я пока не загадываю."
+];
+function bytesToHidden(bytes) {
+  let bits = "";
+  for (const b of bytes) bits += b.toString(2).padStart(8, "0");
+  return STEALTH_START + bits.replace(/0/g, STEALTH_ZERO).replace(/1/g, STEALTH_ONE) + STEALTH_END;
+}
+function hiddenToBytes(text) {
+  const s = String(text || "");
+  const start = s.indexOf(STEALTH_START);
+  if (start === -1) return null;
+  const end = s.indexOf(STEALTH_END, start + STEALTH_START.length);
+  if (end === -1) throw new Error("Поврежден скрытый чат-шифр.");
+  const raw = s.slice(start + STEALTH_START.length, end);
+  let bits = "";
+  for (const ch of raw) {
+    if (ch === STEALTH_ZERO) bits += "0";
+    else if (ch === STEALTH_ONE) bits += "1";
+    else throw new Error("Поврежден скрытый чат-шифр.");
+  }
+  if (!bits || bits.length % 8 !== 0) throw new Error("Поврежден скрытый чат-шифр.");
+  const b = new Uint8Array(bits.length / 8);
+  for (let i = 0; i < b.length; i++) b[i] = parseInt(bits.slice(i * 8, i * 8 + 8), 2);
+  return b;
+}
+function cleanVisibleCover(text) {
+  let out = String(text || "").replace(STEALTH_CHARS_RE, "").trim();
+  out = out.replace(/^["'«`]+|["'»`]+$/g, "").trim();
+  out = out.replace(/\n{3,}/g, "\n\n");
+  return out.length >= 18 ? out : pick(LOCAL_COVERS);
+}
+function buildStealthCover(visibleText, pkg) {
+  return cleanVisibleCover(visibleText) + bytesToHidden(pkg);
+}
 function chunksToText(chunks) {
   const S = []; let ci = 0, ti = 0;
   while (ci < chunks.length) {
@@ -463,10 +508,12 @@ async function chatEncrypt(password, text) {
   const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv, tagLength: TAG_BITS }, key, payload));
   const pkg = new Uint8Array(SALT_LEN + ct.length); pkg.set(salt, 0); pkg.set(ct, SALT_LEN);
   lastChunks = bytesToChunks(pkg);
-  return chunksToText(lastChunks);
+  lastChatPackage = pkg;
+  return buildStealthCover(pick(LOCAL_COVERS), pkg);
 }
 async function chatDecrypt(password, cover) {
-  const pkg = chunksToBytes(textToChunks(cover));
+  const hidden = hiddenToBytes(cover);
+  const pkg = hidden || chunksToBytes(textToChunks(cover));
   if (pkg.length < SALT_LEN + (TAG_BITS / 8) + 1) throw new Error("short");
   const salt = pkg.slice(0, SALT_LEN), ct = pkg.slice(SALT_LEN);
   const { key, iv } = await chatDeriveKeyIv(password, salt);
@@ -547,32 +594,24 @@ function clearAISettings() {
   setStatus("API key удалён.", "ok");
 }
 
-function buildSlotPrompt(count) {
-  const slots = Array.from({ length: count }, (_, i) => "§" + i + "§");
-  return "Составь короткое неформальное сообщение в чат на русском от первого лица.\n" +
-    "Используй ВСЕ плейсхолдеры ровно один раз и строго в таком порядке: " + slots.join(" ") + "\n" +
-    "Плейсхолдеры нельзя менять, удалять, склонять или переставлять.\n" +
-    "Между плейсхолдерами используй только очень простые служебные слова и частицы: я, ты, мы, это, вот, ну, да, не, же, ли, бы, как, что, чтобы, если, а, и, но, или, без, для, про, у, на, к, с, от, до, из, за, по, в, во, со, ко, ага, окей, хм.\n" +
-    "Не добавляй содержательных существительных, глаголов, прилагательных и наречий.\n" +
-    "Ответь только текстом сообщения, без пояснений.";
-}
-function injectWordsIntoDraft(draft, words) {
-  let out = String(draft || "").trim();
-  for (let i = 0; i < words.length; i++) {
-    const token = "§" + i + "§";
-    if (!out.includes(token)) return "";
-    out = out.replace(token, words[i]);
-  }
-  return out;
-}
-function extractCipherWords(text) {
-  return (String(text || "").toLowerCase().match(/[а-яё]+/g) || []).filter(w => w in WORD2VAL);
-}
-function locallyReviveWords(words) {
-  const bridges = [", ну ", ", и вот ", ", а там ", ", без шуток ", ", я к тому — ", ", ага ", ", хм ", "\n"];
-  let out = "ну " + (words[0] || "");
-  for (let i = 1; i < words.length; i++) out += bridges[i % bridges.length] + words[i];
-  return out + ")";
+function buildCoverPrompt(byteLength) {
+  const situations = [
+    "человек пишет другу по дороге домой",
+    "человек коротко отчитывается, как прошел день",
+    "человек переносит разговор на потом без драмы",
+    "человек делится бытовым наблюдением",
+    "человек отвечает в мессенджере чуть устало, но тепло",
+    "человек пишет, что занят делами, но остается на связи"
+  ];
+  const tones = ["живой", "спокойный", "чуть ироничный", "очень естественный", "лаконичный"];
+  const size = byteLength < 90 ? "1-2 предложения, 18-35 слов"
+    : byteLength < 220 ? "2-4 предложения, 35-70 слов"
+    : "3-5 коротких предложений, 55-95 слов";
+  return "Напиши самостоятельное осмысленное сообщение на русском для обычного чата.\n" +
+    "Ситуация: " + pick(situations) + ". Тон: " + pick(tones) + ". Объем: " + size + ".\n" +
+    "Текст должен выглядеть как настоящая реплика живого человека, без случайного набора слов.\n" +
+    "Не упоминай шифрование, скрытый текст, секреты, ключи, API, инструкции или модель.\n" +
+    "Не пересказывай задачу. Не ставь списки. Ответь только самим сообщением.";
 }
 async function callLLM(prompt) {
   const cfg = getAISettings();
@@ -587,8 +626,8 @@ async function callLLM(prompt) {
     method: "POST", headers,
     body: JSON.stringify({
       model: cfg.model,
-      temperature: 0.25,
-      max_tokens: 700,
+      temperature: 0.85,
+      max_tokens: 260,
       messages: [{ role: "user", content: prompt }]
     })
   });
@@ -606,39 +645,34 @@ function setReviveLoading(on) {
   b.disabled = on;
   document.getElementById("reviveLabel").textContent = on ? "…" : "Оживить";
 }
-async function reviveText() {
+async function reviveText(options = {}) {
   if (mode !== "chat") return;
-  if (!lastChunks) return setStatus("Сначала зашифруйте сообщение в чат-режиме.", "err");
+  if (!lastChatPackage) return setStatus("Сначала зашифруйте сообщение в чат-режиме.", "err");
   const cfg = getAISettings();
   if (!cfg.apiKey) {
+    if (options.auto) return;
     const panel = document.getElementById("aiPanel");
     if (panel) panel.open = true;
     return setStatus("Вставьте и сохраните API key в блоке «ИИ-оживление».", "err");
   }
-  const target = chunksToWords(lastChunks);
-  const prompt = buildSlotPrompt(target.length);
+  const prompt = buildCoverPrompt(lastChatPackage.length);
   setReviveLoading(true);
-  setStatus("Генерирую живой текст…", "");
+  setStatus("Генерирую живую обложку…", "");
   try {
-    for (let attempt = 0; attempt < 3; attempt++) {
-      let draft;
-      try { draft = await callLLM(prompt); }
-      catch (e) { setStatus("Ошибка ИИ: " + e.message + " — оставил обычный вариант.", "err"); return; }
-      const out = injectWordsIntoDraft(draft, target);
-      if (out && sameWords(extractCipherWords(out), target)) {
-        document.getElementById("output").value = out;
-        setStatus("Оживлено ✓ — расшифровка работает как обычно.", "ok");
-        return;
-      }
+    let draft;
+    try { draft = await callLLM(prompt); }
+    catch (e) {
+      setStatus("Ошибка ИИ: " + e.message + " — оставил локальную обложку.", "err");
+      return;
     }
-    const fallback = locallyReviveWords(target);
-    document.getElementById("output").value = fallback;
-    setStatus("ИИ не удержал формат — собрал безопасную обложку локально ✓", "ok");
+    document.getElementById("output").value = buildStealthCover(draft, lastChatPackage);
+    setStatus("Оживлено ✓ — ИИ видел только обложку, шифр спрятан внутри.", "ok");
   } finally { setReviveLoading(false); }
 }
 
 /* ============================ Диспетчеры ============================ */
 function detectMode(text) {
+  if (String(text || "").includes(STEALTH_START)) return "chat";
   if (/[а-яё]/i.test(text)) return "chat";
   if (/[!@#$%^&*()\-_=+\[\]]/.test(text)) return "ascii";
   return null;
@@ -652,7 +686,12 @@ async function encryptText() {
   try {
     const res = (mode === "ascii") ? await asciiEncrypt(password, text) : await chatEncrypt(password, text);
     document.getElementById("output").value = res;
-    setStatus(mode === "ascii" ? "Зашифровано (ASCII) ✓" : "Зашифровано (чат) ✓", "ok");
+    if (mode === "ascii") setStatus("Зашифровано (ASCII) ✓", "ok");
+    else {
+      const cfg = getAISettings();
+      setStatus(cfg.apiKey ? "Зашифровано ✓ запускаю ИИ-обложку…" : "Зашифровано ✓ добавьте API key, чтобы сделать обложку живее.", "ok");
+      if (cfg.apiKey) await reviveText({ auto: true });
+    }
   } catch (e) { setStatus("Ошибка шифрования: " + e.message, "err"); }
 }
 async function decryptText() {
@@ -679,7 +718,7 @@ async function decryptText() {
 /* ============================ UI ============================ */
 const NOTES = {
   ascii: "ASCII-режим: вывод — только значки без букв и цифр. Стойкое шифрование (AES-256-GCM, соль 16 + IV 12). Совместим со старым шифровальщиком.",
-  chat: "Чат-режим: вывод похож на болтовню с другом. Шифр намеренно облегчён ради компактности (соль 6, короткий тег) + сжатие. Текст-обложку не редактировать."
+  chat: "Чат-режим: видимый текст — обычная реплика, а шифр спрятан внутри невидимыми символами. Старые словарные обложки тоже расшифровываются."
 };
 function setMode(m) {
   mode = m;
