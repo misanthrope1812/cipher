@@ -3,311 +3,142 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0c0e0c">
-  <title>ASCII Cipher</title>
+  <meta name="theme-color" content="#0b0e0d">
+  <title>Шифр</title>
   <style>
     :root {
-      --bg: #0c0e0c;
-      --panel: #15181500;
-      --card: #16191680;
-      --field: #1b1f1b;
-      --field-focus: #20251f;
-      --border: #2c322c;
-      --border-focus: #00e676;
-      --text: #e8ece8;
-      --muted: #8a948a;
-      --accent: #00e676;
-      --accent-dim: #00c264;
-      --light: #e6e9e6;
-      --grey: #353c35;
-      --danger: #ff5a5a;
-      --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-      --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      --bg: #0b0e0d; --field: #181c1a; --field-focus: #1f2421; --border: #2a312d;
+      --border-focus: #00e676; --text: #e8ece9; --muted: #899389; --accent: #00e676;
+      --accent-dim: #00c264; --ink: #04210f; --light: #e6ece8; --danger: #ff5a5a;
+      --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+      --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     }
-
+    /* акцент зависит от режима */
+    body.chat { --accent: #38c7c0; --accent-dim: #1ea7a0; --border-focus: #38c7c0; --ink: #032e2c; }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-
     html, body { margin: 0; }
-
     body {
       font-family: var(--sans);
       background:
         radial-gradient(900px 500px at 80% -10%, rgba(0,230,118,0.10), transparent 60%),
         radial-gradient(700px 400px at -10% 110%, rgba(0,230,118,0.06), transparent 60%),
         var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      min-height: 100dvh;
-      padding:
-        calc(20px + env(safe-area-inset-top))
-        calc(16px + env(safe-area-inset-right))
-        calc(28px + env(safe-area-inset-bottom))
-        calc(16px + env(safe-area-inset-left));
-      line-height: 1.45;
+      color: var(--text); min-height: 100vh; min-height: 100dvh;
+      padding: calc(20px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
+               calc(28px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+      line-height: 1.45; transition: background .25s;
     }
-
-    .wrap {
-      max-width: 760px;
-      margin: 0 auto;
-    }
-
-    header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 6px;
-    }
-
+    .wrap { max-width: 760px; margin: 0 auto; }
+    header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
     .logo {
-      width: 38px; height: 38px;
-      flex: none;
-      border-radius: 10px;
+      width: 38px; height: 38px; flex: none; border-radius: 11px;
       background: linear-gradient(145deg, var(--accent), var(--accent-dim));
-      color: #00200f;
-      display: grid;
-      place-items: center;
-      font-family: var(--mono);
-      font-weight: 800;
-      font-size: 20px;
-      box-shadow: 0 4px 18px rgba(0,230,118,0.35);
+      color: var(--ink); display: grid; place-items: center; font-weight: 800; font-size: 19px;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.4); transition: background .25s;
     }
-
-    h1 {
-      font-size: clamp(20px, 5vw, 26px);
-      margin: 0;
-      letter-spacing: -0.4px;
-      font-weight: 700;
-    }
+    h1 { font-size: clamp(20px, 5vw, 26px); margin: 0; letter-spacing: -0.4px; font-weight: 700; }
     h1 span { color: var(--accent); }
-
-    .note {
-      color: var(--muted);
-      font-size: 13.5px;
-      margin: 4px 0 20px;
-      max-width: 60ch;
+    .seg {
+      display: flex; background: var(--field); border: 1.5px solid var(--border);
+      border-radius: 13px; padding: 4px; gap: 4px; margin-bottom: 16px;
     }
-
+    .seg button {
+      flex: 1; border: 0; background: transparent; color: var(--muted); font-weight: 700;
+      font-size: 14.5px; padding: 11px 8px; border-radius: 9px; cursor: pointer;
+      font-family: var(--sans); transition: all .15s; display: flex; align-items: center;
+      justify-content: center; gap: 7px;
+    }
+    .seg button.active { background: var(--accent); color: var(--ink); }
+    .seg .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .6; }
+    .note { color: var(--muted); font-size: 13.5px; margin: 0 0 18px; max-width: 62ch; min-height: 38px; }
     .field-label {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--muted);
-      letter-spacing: 0.3px;
-      margin: 0 0 7px 2px;
-      text-transform: uppercase;
+      display: flex; justify-content: space-between; align-items: baseline;
+      font-size: 13px; font-weight: 600; color: var(--muted); letter-spacing: 0.3px;
+      margin: 0 0 7px 2px; text-transform: uppercase;
     }
     .field-label .meta { font-weight: 500; text-transform: none; font-family: var(--mono); }
-    .label-right { display: flex; align-items: center; gap: 10px; }
-
-    .clear-btn {
-      border: 0;
-      background: transparent;
-      color: var(--muted);
-      font-family: var(--sans);
-      font-size: 12px;
-      font-weight: 600;
-      letter-spacing: 0.3px;
-      text-transform: uppercase;
-      cursor: pointer;
-      padding: 4px 8px;
-      border-radius: 8px;
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      transition: color .15s, background .15s, opacity .15s;
-    }
-    .clear-btn:hover { color: var(--danger); background: rgba(255,90,90,0.10); }
-    .clear-btn:active { transform: scale(0.95); }
-    .clear-btn svg { width: 14px; height: 14px; }
-    .clear-btn[disabled] { opacity: 0.4; cursor: default; pointer-events: none; }
-
     .pw-row { position: relative; }
-
     input[type="password"], input[type="text"], textarea {
-      width: 100%;
-      background: var(--field);
-      color: var(--text);
-      border: 1.5px solid var(--border);
-      border-radius: 12px;
-      padding: 14px 15px;
-      font-size: 16px; /* 16px+ prevents iOS zoom-on-focus */
-      font-family: var(--sans);
-      transition: border-color .15s, background .15s;
-      outline: none;
+      width: 100%; background: var(--field); color: var(--text);
+      border: 1.5px solid var(--border); border-radius: 12px; padding: 14px 15px;
+      font-size: 16px; font-family: var(--sans); transition: border-color .15s, background .15s; outline: none;
     }
     .pw-row input { padding-right: 52px; }
-
-    input:focus, textarea:focus {
-      border-color: var(--border-focus);
-      background: var(--field-focus);
-    }
-
-    textarea {
-      min-height: 150px;
-      resize: vertical;
-      font-family: var(--mono);
-      font-size: 15px;
-      line-height: 1.55;
-      word-break: break-all;
-    }
-    textarea#output {
-      background: #11140f;
-      color: var(--accent);
-      letter-spacing: 0.5px;
-    }
-
+    input:focus, textarea:focus { border-color: var(--border-focus); background: var(--field-focus); }
+    textarea { min-height: 130px; resize: vertical; font-size: 15.5px; line-height: 1.6; }
+    textarea#output { background: #10130f; color: var(--light); min-height: 150px; }
+    body.ascii textarea#output { font-family: var(--mono); color: var(--accent); letter-spacing: 0.5px; word-break: break-all; }
     .toggle-pw {
-      position: absolute;
-      top: 50%;
-      right: 8px;
-      transform: translateY(-50%);
-      width: 38px; height: 38px;
-      border: 0;
-      background: transparent;
-      color: var(--muted);
-      border-radius: 9px;
-      cursor: pointer;
-      display: grid;
-      place-items: center;
+      position: absolute; top: 50%; right: 8px; transform: translateY(-50%);
+      width: 38px; height: 38px; border: 0; background: transparent; color: var(--muted);
+      border-radius: 9px; cursor: pointer; display: grid; place-items: center;
     }
     .toggle-pw:hover { color: var(--text); background: #ffffff10; }
     .toggle-pw svg { width: 22px; height: 22px; }
-
     .group { margin-bottom: 18px; }
-
-    .btn-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin: 4px 0 18px;
-    }
-
+    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 4px 0 18px; }
     button.action {
-      appearance: none;
-      border: 0;
-      border-radius: 12px;
-      padding: 15px 16px;
-      font-size: 15.5px;
-      font-weight: 700;
-      font-family: var(--sans);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      transition: transform .08s, filter .15s, opacity .15s;
-      min-height: 52px;
+      appearance: none; border: 0; border-radius: 12px; padding: 15px 16px; font-size: 15.5px;
+      font-weight: 700; font-family: var(--sans); cursor: pointer; display: flex; align-items: center;
+      justify-content: center; gap: 8px; transition: transform .08s, filter .15s; min-height: 52px;
     }
     button.action:active { transform: scale(0.97); }
     button.action svg { width: 19px; height: 19px; }
-
-    .encrypt { background: var(--accent); color: #002a14; }
+    .encrypt { background: var(--accent); color: var(--ink); }
     .encrypt:hover { filter: brightness(1.07); }
     .decrypt { background: var(--light); color: #15171a; }
     .decrypt:hover { filter: brightness(1.05); }
-
-    .out-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin: 0 0 7px 2px;
-    }
+    .out-head { display: flex; align-items: center; justify-content: space-between; margin: 0 0 7px 2px; }
     .out-head .field-label { margin: 0; }
-
     .copy {
-      border: 1.5px solid var(--border);
-      background: transparent;
-      color: var(--text);
-      border-radius: 10px;
-      padding: 8px 14px;
-      font-size: 13.5px;
-      font-weight: 600;
-      font-family: var(--sans);
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      transition: all .15s;
-      min-height: 40px;
+      border: 1.5px solid var(--border); background: transparent; color: var(--text);
+      border-radius: 10px; padding: 8px 14px; font-size: 13.5px; font-weight: 600;
+      font-family: var(--sans); cursor: pointer; display: inline-flex; align-items: center;
+      gap: 7px; transition: all .15s; min-height: 40px;
     }
     .copy:hover { border-color: var(--accent); color: var(--accent); }
     .copy:active { transform: scale(0.96); }
-    .copy.done { border-color: var(--accent); color: var(--accent); background: rgba(0,230,118,0.10); }
+    .copy.done { border-color: var(--accent); color: var(--accent); }
     .copy svg { width: 17px; height: 17px; }
-
-    .status {
-      min-height: 20px;
-      font-size: 13.5px;
-      margin: 12px 2px 0;
-      font-family: var(--mono);
-      transition: opacity .2s;
-    }
+    .status { min-height: 20px; font-size: 13.5px; margin: 12px 2px 0; font-family: var(--mono); }
     .status.ok { color: var(--accent); }
     .status.err { color: var(--danger); }
-
     .toast {
-      position: fixed;
-      left: 50%;
-      bottom: calc(22px + env(safe-area-inset-bottom));
-      transform: translateX(-50%) translateY(20px);
-      background: #1d211c;
-      border: 1px solid var(--accent);
-      color: var(--accent);
-      padding: 11px 20px;
-      border-radius: 30px;
-      font-size: 14px;
-      font-weight: 600;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity .25s, transform .25s;
-      z-index: 50;
-      max-width: 90vw;
+      position: fixed; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom));
+      transform: translateX(-50%) translateY(20px); background: #1a1f1c;
+      border: 1px solid var(--accent); color: var(--accent); padding: 11px 20px; border-radius: 30px;
+      font-size: 14px; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,0.5); opacity: 0;
+      pointer-events: none; transition: opacity .25s, transform .25s; z-index: 50; max-width: 90vw;
     }
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-
-    footer {
-      margin-top: 26px;
-      text-align: center;
-      color: #5c655c;
-      font-size: 12px;
-      font-family: var(--mono);
-    }
-
-    @media (min-width: 600px) {
-      .btn-row { grid-template-columns: 1fr 1fr; }
-    }
-    @media (max-width: 360px) {
-      .btn-row { grid-template-columns: 1fr; }
-    }
+    footer { margin-top: 26px; text-align: center; color: #5c655c; font-size: 12px; font-family: var(--mono); }
+    @media (max-width: 360px) { .btn-row { grid-template-columns: 1fr; } }
   </style>
 </head>
-<body>
+<body class="chat">
 <div class="wrap">
 
   <header>
-    <div class="logo">#</div>
-    <h1>ASCII <span>Cipher</span></h1>
+    <div class="logo" id="logo">#</div>
+    <h1>Шифр<span>.</span></h1>
   </header>
 
-  <p class="note">
-    Работает локально в браузере, ничего не отправляется в сеть. Шифрование AES-GCM
-    с ключом из пароля (PBKDF2, 250&nbsp;000 итераций). Вывод — только ASCII-символы
-    без букв и цифр.
-  </p>
+  <div class="seg">
+    <button id="segAscii" onclick="setMode('ascii')"><span class="dot"></span>ASCII</button>
+    <button id="segChat" class="active" onclick="setMode('chat')"><span class="dot"></span>Чат</button>
+  </div>
+
+  <p class="note" id="note"></p>
 
   <div class="group">
     <div class="field-label"><span>Пароль</span></div>
     <div class="pw-row">
       <input id="password" type="password" placeholder="Общий пароль" autocomplete="off"
              autocapitalize="off" autocorrect="off" spellcheck="false">
-      <button class="toggle-pw" type="button" id="togglePw" aria-label="Показать пароль" onclick="togglePassword()">
+      <button class="toggle-pw" type="button" aria-label="Показать пароль" onclick="togglePassword()">
         <svg id="eyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
              stroke-linecap="round" stroke-linejoin="round">
-          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/>
-          <circle cx="12" cy="12" r="3"/>
+          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>
         </svg>
       </button>
     </div>
@@ -315,19 +146,10 @@
 
   <div class="group">
     <div class="field-label">
-      <span>Текст / шифр</span>
-      <span class="label-right">
-        <span class="meta" id="inLen">0</span>
-        <button type="button" class="clear-btn" id="clearBtn" onclick="clearInput()" aria-label="Очистить поле" disabled>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-               stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-          Очистить
-        </button>
-      </span>
+      <span>Сообщение / шифр</span>
+      <span class="meta" id="inLen">0</span>
     </div>
-    <textarea id="input" placeholder="Введите текст для шифрования — или вставьте ASCII-шифр для расшифровки"
+    <textarea id="input" placeholder="Введите сообщение — или вставьте шифр для расшифровки"
               autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
   </div>
 
@@ -352,7 +174,7 @@
     <div class="out-head">
       <div class="field-label"><span>Результат</span></div>
       <button class="copy" id="copyBtn" onclick="copyOutput()">
-        <svg id="copyIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
              stroke-linecap="round" stroke-linejoin="round">
           <rect x="9" y="9" width="13" height="13" rx="2"/>
           <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
@@ -360,8 +182,7 @@
         <span id="copyLabel">Копировать</span>
       </button>
     </div>
-    <textarea id="output" readonly placeholder="Здесь появится результат"
-              onclick="this.select()"></textarea>
+    <textarea id="output" readonly placeholder="Здесь появится результат" onclick="this.select()"></textarea>
     <div class="status" id="status"></div>
   </div>
 
@@ -371,200 +192,291 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const alphabet = ["!", "@", "#", "$", "%", "^", "&", "*", "(", ")", "-", "_", "=", "+", "[", "]"];
+/* ======================================================================
+   Два режима в одном файле:
+   • ASCII  — формат старого шифровальщика (соль16+IV12+версия, значки).
+   • Чат    — облегчённый шифр + бытовая текст-обложка.
+   При расшифровке режим определяется автоматически: кириллица → чат,
+   значки → ASCII.
+   ====================================================================== */
 
-/* ---------- encoding ---------- */
+let mode = "chat";
+
+/* ============================ ASCII режим ============================ */
+const ALPHABET = ["!","@","#","$","%","^","&","*","(",")","-","_","=","+","[","]"];
 function bytesToSymbols(bytes) {
-  let result = "";
-  for (const byte of bytes) {
-    result += alphabet[(byte >> 4) & 15];
-    result += alphabet[byte & 15];
-  }
-  return result;
+  let r = ""; for (const b of bytes) { r += ALPHABET[(b >> 4) & 15]; r += ALPHABET[b & 15]; } return r;
 }
-
 function symbolsToBytes(str) {
   const clean = str.replace(/\s/g, "");
-  if (clean.length % 2 !== 0) {
-    throw new Error("Некорректная длина шифра.");
-  }
+  if (clean.length % 2 !== 0) throw new Error("Некорректная длина шифра.");
   const bytes = new Uint8Array(clean.length / 2);
   for (let i = 0; i < clean.length; i += 2) {
-    const high = alphabet.indexOf(clean[i]);
-    const low = alphabet.indexOf(clean[i + 1]);
-    if (high === -1 || low === -1) {
-      throw new Error("Шифр содержит недопустимые символы.");
-    }
-    bytes[i / 2] = (high << 4) | low;
+    const hi = ALPHABET.indexOf(clean[i]), lo = ALPHABET.indexOf(clean[i + 1]);
+    if (hi === -1 || lo === -1) throw new Error("Шифр содержит недопустимые символы.");
+    bytes[i / 2] = (hi << 4) | lo;
   }
   return bytes;
 }
-
-/* ---------- key derivation ---------- */
-async function deriveKey(password, salt) {
-  const encoder = new TextEncoder();
-  const baseKey = await crypto.subtle.importKey(
-    "raw", encoder.encode(password), "PBKDF2", false, ["deriveKey"]
-  );
+async function asciiDeriveKey(password, salt) {
+  const enc = new TextEncoder();
+  const base = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveKey"]);
   return crypto.subtle.deriveKey(
-    { name: "PBKDF2", salt: salt, iterations: 250000, hash: "SHA-256" },
-    baseKey,
-    { name: "AES-GCM", length: 256 },
-    false,
-    ["encrypt", "decrypt"]
+    { name: "PBKDF2", salt, iterations: 250000, hash: "SHA-256" },
+    base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]
   );
 }
+async function asciiEncrypt(password, text) {
+  const enc = new TextEncoder();
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await asciiDeriveKey(password, salt);
+  const encrypted = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, enc.encode(text)));
+  const pkg = new Uint8Array(1 + 16 + 12 + encrypted.length);
+  pkg[0] = 1; pkg.set(salt, 1); pkg.set(iv, 17); pkg.set(encrypted, 29);
+  return bytesToSymbols(pkg);
+}
+async function asciiDecrypt(password, cipher) {
+  const pkg = symbolsToBytes(cipher);
+  if (pkg[0] !== 1) throw new Error("version");
+  const salt = pkg.slice(1, 17), iv = pkg.slice(17, 29), data = pkg.slice(29);
+  const key = await asciiDeriveKey(password, salt);
+  const dec = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, data);
+  return new TextDecoder().decode(dec);
+}
 
-/* ---------- encrypt / decrypt ---------- */
+/* ============================ Чат режим ============================ */
+const LISTS = {
+  T: ["сегодня","вчера","утром","днем","вечером","ночью","опять","снова",
+      "часто","редко","иногда","постоянно","внезапно","случайно","специально","нарочно",
+      "быстро","медленно","тихо","громко","спокойно","нервно","весело","грустно",
+      "устало","лениво","срочно","заранее","вовремя","поздно","рано","недавно",
+      "давно","теперь","сейчас","потом","сначала","затем","наконец","молча",
+      "реально","серьезно","нормально","классно","ужасно","тупо","странно","обычно",
+      "внатуре","походу","видимо","наверное","типа","вроде","слегка","немного",
+      "совсем","почти","еле","резко","помаленьку","потихоньку","изредка","частенько"],
+  A: ["старый","новый","обычный","странный","нормальный","классный","крутой","ужасный",
+      "дурацкий","тупой","скучный","веселый","грустный","злой","добрый","усталый",
+      "голодный","сонный","довольный","сердитый","нервный","спокойный","занятой","свободный",
+      "дорогой","платный","сломанный","рабочий","будний","долгий","короткий","быстрый",
+      "медленный","громкий","тихий","теплый","холодный","мокрый","сухой","грязный",
+      "чистый","знакомый","чужой","родной","местный","соседский","вчерашний","утренний",
+      "вечерний","поздний","ранний","глупый","умный","честный","хитрый","простой",
+      "сложный","важный","главный","мелкий","полный","приятный","противный","срочный"],
+  N: ["день","вечер","обед","кофе","чай","завтрак","ужин","перерыв",
+      "автобус","поезд","трамвай","вокзал","магазин","рынок","банк","офис",
+      "дом","двор","балкон","гараж","лифт","подъезд","этаж","ремонт",
+      "телефон","ноутбук","экран","зарядник","наушник","провод","пульт","будильник",
+      "директор","сосед","друг","брат","отец","дед","гость","курьер",
+      "дождь","снег","ветер","мороз","туман","гром","зонт","шарф",
+      "рюкзак","карман","ключ","паспорт","билет","чек","пакет","мусор",
+      "сериал","фильм","матч","концерт","выходной","отпуск","праздник","понедельник"],
+  V: ["устал","проспал","опоздал","забыл","выспался","перекусил","залип","отдыхал",
+      "работал","договорился","созвонился","заболел","простыл","выздоровел","психанул","торопился",
+      "гулял","бегал","готовил","убирался","стирал","звонил","писал","читал",
+      "смотрел","скучал","нервничал","ругался","мирился","шутил","смеялся","грустил",
+      "радовался","расстроился","удивился","разозлился","успокоился","расслабился","напрягся","молчал",
+      "поел","поспал","проснулся","оделся","собрался","вернулся","задержался","освободился",
+      "запарился","устроился","разобрался","починил","потерял","купил","сломал","разбил",
+      "помыл","прибрался","прогулялся","отдохнул","наелся","выпил","закурил","покурил"]
+};
+const CHAT_RAW = [
+  "слушай, я %T %V, а %N %V.","короче %A %N %V.","%N %V, я %V.","блин %A %N тут %V.",
+  "я %V и %V, %N %V.","ну %N %T %V.","%A %N %V, прикинь.","я %T %V, а ты как?",
+  "мне %N написал, я %V.","кстати, %V.","честно, я %T %V.","не, ну %A %N это жесть.",
+  "я прям %T %V, %N тоже %V.","ваще %N %V, я %V.","%N %V — и я %V.","ой, %N %V, я аж %V."
+];
+const ENDINGS = [")", "))", ")))", " )", " ))", "..."];
+const PARTICLES = ["лол", "хаха", "ваще", "прям", "жесть", "кек", "ну такое"];
+function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
+
+const BITS = 6, SALT_LEN = 6, TAG_BITS = 32;
+const WORD2VAL = {};
+let initOK = true, initMsg = "";
+(function () {
+  const seen = new Set();
+  for (const k in LISTS) {
+    if (LISTS[k].length !== 64) { initOK = false; initMsg = "Список " + k + ": " + LISTS[k].length; }
+    LISTS[k].forEach((w, i) => { if (seen.has(w)) { initOK = false; initMsg = "Дубль: " + w; } seen.add(w); WORD2VAL[w] = i; });
+  }
+})();
+function parseTemplate(str) {
+  const parts = []; let cap = 0; const re = /%([TANV])/g; let last = 0, m;
+  while ((m = re.exec(str)) !== null) {
+    if (m.index > last) parts.push({ lit: str.slice(last, m.index) });
+    parts.push({ cat: m[1] }); cap++; last = re.lastIndex;
+  }
+  if (last < str.length) parts.push({ lit: str.slice(last) });
+  for (const p of parts) if (p.lit) { const toks = (p.lit.toLowerCase().match(/[а-яё]+/g)) || []; for (const t of toks) if (t in WORD2VAL) { initOK = false; initMsg = "Литерал из словаря: " + t; } }
+  return { parts, cap };
+}
+const CHAT = CHAT_RAW.map(parseTemplate);
+(function () { for (const p of PARTICLES) { const toks = (p.toLowerCase().match(/[а-яё]+/g)) || []; for (const t of toks) if (t in WORD2VAL) { initOK = false; initMsg = "Частица из словаря: " + t; } } })();
+
+const HAS_CS = (typeof CompressionStream !== "undefined" && typeof DecompressionStream !== "undefined");
+async function deflateRaw(b) { const cs = new CompressionStream("deflate-raw"); const w = cs.writable.getWriter(); w.write(b); w.close(); return new Uint8Array(await new Response(cs.readable).arrayBuffer()); }
+async function inflateRaw(b) { const ds = new DecompressionStream("deflate-raw"); const w = ds.writable.getWriter(); w.write(b); w.close(); return new Uint8Array(await new Response(ds.readable).arrayBuffer()); }
+
+function bytesToChunks(bytes) {
+  let bits = ""; for (const b of bytes) bits += b.toString(2).padStart(8, "0");
+  const ch = []; for (let i = 0; i < bits.length; i += BITS) ch.push(parseInt(bits.slice(i, i + BITS).padEnd(BITS, "0"), 2));
+  return ch;
+}
+function chunksToBytes(chunks) {
+  let bits = ""; for (const c of chunks) bits += c.toString(2).padStart(BITS, "0");
+  const n = Math.floor(bits.length / 8); const b = new Uint8Array(n);
+  for (let i = 0; i < n; i++) b[i] = parseInt(bits.slice(i * 8, i * 8 + 8), 2);
+  return b;
+}
+function chunksToText(chunks) {
+  const S = []; let ci = 0, ti = 0;
+  while (ci < chunks.length) {
+    const rem = chunks.length - ci;
+    let tpl = CHAT[ti % CHAT.length];
+    if (tpl.cap > rem) { let best = null; for (const t of CHAT) if (t.cap <= rem && (!best || t.cap > best.cap)) best = t; tpl = best || CHAT[CHAT.length - 1]; }
+    ti++;
+    let s = "";
+    for (const p of tpl.parts) { if (p.lit) s += p.lit; else { if (ci >= chunks.length) break; s += LISTS[p.cat][chunks[ci++]]; } }
+    s = s.replace(/[а-яё]/i, c => c.toUpperCase()).trim();
+    const r = Math.random();
+    if (r < 0.16) s = s.replace(/[.?!]+$/, "") + pick(ENDINGS);
+    else if (r < 0.28) s = s.replace(/[.?!]+$/, "") + " " + pick(PARTICLES) + ".";
+    S.push(s);
+  }
+  let out = "";
+  for (let i = 0; i < S.length; i++) { out += S[i]; if (i < S.length - 1) { const r = Math.random(); out += (r < 0.45) ? "\n" : (r < 0.62) ? "\n\n" : " "; } }
+  return out;
+}
+function textToChunks(text) {
+  const tk = (text.toLowerCase().match(/[а-яё]+/g)) || [];
+  const ch = []; for (const t of tk) if (t in WORD2VAL) ch.push(WORD2VAL[t]);
+  if (ch.length === 0) throw new Error("Не найдено ни одного слова-обложки.");
+  return ch;
+}
+async function chatDeriveKeyIv(password, salt) {
+  const enc = new TextEncoder();
+  const base = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
+  const raw = new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations: 250000, hash: "SHA-256" }, base, (32 + 12) * 8));
+  const key = await crypto.subtle.importKey("raw", raw.slice(0, 32), { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+  return { key, iv: raw.slice(32, 44) };
+}
+async function chatEncrypt(password, text) {
+  const data = new TextEncoder().encode(text);
+  let flag = 0, body = data;
+  if (HAS_CS) { const comp = await deflateRaw(data); if (comp.length < data.length) { flag = 1; body = comp; } }
+  const payload = new Uint8Array(1 + body.length); payload[0] = flag; payload.set(body, 1);
+  const salt = crypto.getRandomValues(new Uint8Array(SALT_LEN));
+  const { key, iv } = await chatDeriveKeyIv(password, salt);
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv, tagLength: TAG_BITS }, key, payload));
+  const pkg = new Uint8Array(SALT_LEN + ct.length); pkg.set(salt, 0); pkg.set(ct, SALT_LEN);
+  return chunksToText(bytesToChunks(pkg));
+}
+async function chatDecrypt(password, cover) {
+  const pkg = chunksToBytes(textToChunks(cover));
+  if (pkg.length < SALT_LEN + (TAG_BITS / 8) + 1) throw new Error("short");
+  const salt = pkg.slice(0, SALT_LEN), ct = pkg.slice(SALT_LEN);
+  const { key, iv } = await chatDeriveKeyIv(password, salt);
+  const payload = new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv, tagLength: TAG_BITS }, key, ct));
+  const flag = payload[0]; let bodyB = payload.slice(1);
+  if (flag === 1) { if (!HAS_CS) throw new Error("Сообщение сжато, но браузер не умеет распаковывать."); bodyB = await inflateRaw(bodyB); }
+  return new TextDecoder().decode(bodyB);
+}
+
+/* ============================ Диспетчеры ============================ */
+function detectMode(text) {
+  if (/[а-яё]/i.test(text)) return "chat";
+  if (/[!@#$%^&*()\-_=+\[\]]/.test(text)) return "ascii";
+  return null;
+}
 async function encryptText() {
   const password = document.getElementById("password").value;
   const text = document.getElementById("input").value;
-
   if (!password) return setStatus("Введите пароль.", "err");
-  if (!text)     return setStatus("Введите текст для шифрования.", "err");
-
+  if (!text)     return setStatus("Введите сообщение для шифрования.", "err");
+  if (mode === "chat" && !initOK) return setStatus("Ошибка словаря: " + initMsg, "err");
   try {
-    const encoder = new TextEncoder();
-    const salt = crypto.getRandomValues(new Uint8Array(16));
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const key = await deriveKey(password, salt);
-
-    const encrypted = await crypto.subtle.encrypt(
-      { name: "AES-GCM", iv: iv }, key, encoder.encode(text)
-    );
-    const encryptedBytes = new Uint8Array(encrypted);
-
-    const packageBytes = new Uint8Array(1 + salt.length + iv.length + encryptedBytes.length);
-    packageBytes[0] = 1;
-    packageBytes.set(salt, 1);
-    packageBytes.set(iv, 1 + salt.length);
-    packageBytes.set(encryptedBytes, 1 + salt.length + iv.length);
-
-    document.getElementById("output").value = bytesToSymbols(packageBytes);
-    setStatus("Зашифровано ✓", "ok");
-  } catch (e) {
-    setStatus("Ошибка шифрования: " + e.message, "err");
-  }
+    const res = (mode === "ascii") ? await asciiEncrypt(password, text) : await chatEncrypt(password, text);
+    document.getElementById("output").value = res;
+    setStatus(mode === "ascii" ? "Зашифровано (ASCII) ✓" : "Зашифровано (чат) ✓", "ok");
+  } catch (e) { setStatus("Ошибка шифрования: " + e.message, "err"); }
 }
-
 async function decryptText() {
   const password = document.getElementById("password").value;
-  const cipherText = document.getElementById("input").value;
-
-  if (!password)   return setStatus("Введите пароль.", "err");
-  if (!cipherText) return setStatus("Вставьте шифр для расшифровки.", "err");
-
+  const input = document.getElementById("input").value;
+  if (!password) return setStatus("Введите пароль.", "err");
+  if (!input)    return setStatus("Вставьте шифр для расшифровки.", "err");
+  const det = detectMode(input);
+  if (!det) return setStatus("Не похоже ни на ASCII-шифр, ни на чат-обложку.", "err");
   try {
-    const packageBytes = symbolsToBytes(cipherText);
-    if (packageBytes[0] !== 1) throw new Error("Неподдерживаемая версия шифра.");
-
-    const salt = packageBytes.slice(1, 17);
-    const iv = packageBytes.slice(17, 29);
-    const encryptedBytes = packageBytes.slice(29);
-    const key = await deriveKey(password, salt);
-
-    const decrypted = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: iv }, key, encryptedBytes
-    );
-
-    document.getElementById("output").value = new TextDecoder().decode(decrypted);
-    setStatus("Расшифровано ✓", "ok");
+    let res;
+    if (det === "ascii") res = await asciiDecrypt(password, input);
+    else { if (!initOK) return setStatus("Ошибка словаря: " + initMsg, "err"); res = await chatDecrypt(password, input); }
+    document.getElementById("output").value = res;
+    setStatus(det === "ascii" ? "Расшифровано (ASCII) ✓" : "Расшифровано (чат) ✓", "ok");
   } catch (e) {
-    setStatus("Не удалось расшифровать — проверьте пароль или текст.", "err");
+    const msg = (e.message && e.message.indexOf("распаков") !== -1) ? e.message
+      : (e.message === "Не найдено ни одного слова-обложки.") ? e.message
+      : "Не удалось расшифровать — проверьте пароль или текст.";
+    setStatus(msg, "err");
   }
 }
 
-/* ---------- copy (with fallback for file:// / old browsers) ---------- */
+/* ============================ UI ============================ */
+const NOTES = {
+  ascii: "ASCII-режим: вывод — только значки без букв и цифр. Стойкое шифрование (AES-256-GCM, соль 16 + IV 12). Совместим со старым шифровальщиком.",
+  chat: "Чат-режим: вывод похож на болтовню с другом. Шифр намеренно облегчён ради компактности (соль 6, короткий тег) + сжатие. Текст-обложку не редактировать."
+};
+function setMode(m) {
+  mode = m;
+  document.body.className = m;
+  document.getElementById("segAscii").classList.toggle("active", m === "ascii");
+  document.getElementById("segChat").classList.toggle("active", m === "chat");
+  document.getElementById("logo").textContent = (m === "ascii") ? "#" : "💬";
+  document.getElementById("note").textContent = NOTES[m];
+  document.getElementById("input").placeholder = (m === "ascii")
+    ? "Введите текст — или вставьте ASCII-шифр (значки) для расшифровки"
+    : "Введите сообщение — или вставьте текст-обложку для расшифровки";
+}
+
 async function copyOutput() {
-  const output = document.getElementById("output");
-  const text = output.value;
+  const out = document.getElementById("output"); const text = out.value;
   if (!text) return setStatus("Нечего копировать.", "err");
-
   let copied = false;
-  try {
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(text);
-      copied = true;
-    }
-  } catch (e) { /* fall through to legacy method */ }
-
+  try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); copied = true; } } catch (e) {}
   if (!copied) {
-    output.removeAttribute("readonly");
-    output.focus();
-    output.select();
-    output.setSelectionRange(0, text.length);
+    out.removeAttribute("readonly"); out.focus(); out.select(); out.setSelectionRange(0, text.length);
     try { copied = document.execCommand("copy"); } catch (e) { copied = false; }
-    output.setAttribute("readonly", "");
-    window.getSelection().removeAllRanges();
+    out.setAttribute("readonly", ""); window.getSelection().removeAllRanges();
   }
-
-  if (copied) {
-    showCopied();
-    showToast("Скопировано в буфер обмена");
-  } else {
-    output.focus();
-    output.select();
-    showToast("Не удалось скопировать — текст выделен, нажмите «Копировать»");
-  }
+  if (copied) { showCopied(); showToast("Скопировано в буфер обмена"); }
+  else { out.focus(); out.select(); showToast("Не удалось — текст выделен, скопируйте вручную"); }
 }
-
 function showCopied() {
-  const btn = document.getElementById("copyBtn");
-  const label = document.getElementById("copyLabel");
-  btn.classList.add("done");
-  label.textContent = "Скопировано";
-  setTimeout(() => {
-    btn.classList.remove("done");
-    label.textContent = "Копировать";
-  }, 1600);
+  const btn = document.getElementById("copyBtn"), label = document.getElementById("copyLabel");
+  btn.classList.add("done"); label.textContent = "Скопировано";
+  setTimeout(() => { btn.classList.remove("done"); label.textContent = "Копировать"; }, 1600);
 }
-
-/* ---------- ui helpers ---------- */
 function togglePassword() {
-  const input = document.getElementById("password");
-  const isPw = input.type === "password";
+  const input = document.getElementById("password"); const isPw = input.type === "password";
   input.type = isPw ? "text" : "password";
   document.getElementById("eyeIcon").innerHTML = isPw
     ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-10-7-10-7a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 10 7 10 7a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'
     : '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>';
 }
-
 let statusTimer;
 function setStatus(msg, type) {
-  const el = document.getElementById("status");
-  el.textContent = msg;
-  el.className = "status " + (type || "");
+  const el = document.getElementById("status"); el.textContent = msg; el.className = "status " + (type || "");
   clearTimeout(statusTimer);
   if (type === "ok") statusTimer = setTimeout(() => { el.textContent = ""; el.className = "status"; }, 4000);
 }
-
 let toastTimer;
 function showToast(msg) {
-  const t = document.getElementById("toast");
-  t.textContent = msg;
-  t.classList.add("show");
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+  const t = document.getElementById("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 2300);
 }
+document.getElementById("input").addEventListener("input", function () { document.getElementById("inLen").textContent = this.value.length; });
 
-/* clear the input field */
-function clearInput() {
-  const input = document.getElementById("input");
-  input.value = "";
-  updateInputMeta();
-  input.focus();
-  setStatus("Поле очищено.", "ok");
-}
-
-/* live char counter + clear-button state */
-function updateInputMeta() {
-  const input = document.getElementById("input");
-  document.getElementById("inLen").textContent = input.value.length;
-  document.getElementById("clearBtn").disabled = input.value.length === 0;
-}
-
-document.getElementById("input").addEventListener("input", updateInputMeta);
-updateInputMeta();
+setMode("chat");
 </script>
 </body>
 </html>
