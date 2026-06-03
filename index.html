@@ -497,13 +497,63 @@ function sameWords(a, b) {
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
   return true;
 }
+function extractCoverWords(text) {
+  return (text.toLowerCase().match(/[а-яё]+/g) || []).filter(w => w in WORD2VAL);
+}
+function cleanLlmOutput(text, target) {
+  // Модель часто добавляет лишние словарные слова. Для шифра это смертельно:
+  // textToChunks() извлечёт их как дополнительные 6-битные блоки.
+  // Поэтому чистим ответ: оставляем только нужные словарные слова в нужном порядке,
+  // а любые другие словарные слова удаляем. Несловарная «связка» остаётся.
+  let i = 0;
+  const cleaned = text.replace(/[а-яё]+/gi, (word) => {
+    const lower = word.toLowerCase();
+    if (!(lower in WORD2VAL)) return word;
+    if (i < target.length && lower === target[i]) { i++; return target[i - 1]; }
+    return "";
+  })
+    .replace(/[ 	]{2,}/g, " ")
+    .replace(/\s+([,.!?;:])/g, "$1")
+    .replace(/([,.!?;:]){2,}/g, "$1")
+    .replace(/
+{3,}/g, "\n\n")
+    .trim();
+  return sameWords(extractCoverWords(cleaned), target) ? cleaned : "";
+}
+function fallbackAliveText(target) {
+  // Безопасный вариант без API: использует только точные слова-носители и нейтральные связки,
+  // которых нет в словаре. Расшифровка не ломается.
+  const patterns = [
+    ["слушай, я тут ", ", и это ", ", ну а ", " как-то так."],
+    ["короче, ", " — это прям ", ", и ещё ", ", я без шуток."],
+    ["ну да, ", ", потом у меня ", ", а там ", ", вот так."],
+    ["если честно, ", ", и ", ", но ", ", хз."],
+    ["я тебе так скажу: ", ", ", ", ", ", и всё."],
+    ["у меня тут ", ", рядом ", ", ещё ", ", нормально."],
+    ["в общем, ", ", ", ", а ", ", понял."],
+    ["ну это ", ", ", ", ", ", без вариантов."]
+  ];
+  const lines = [];
+  let i = 0, pi = 0;
+  while (i < target.length) {
+    const p = patterns[pi++ % patterns.length];
+    const n = Math.min(4, target.length - i);
+    let line = p[0] + target[i++];
+    for (let k = 1; k < n; k++) line += p[k] + target[i++];
+    line += p[n] || ".";
+    line = line.replace(/[а-яё]/i, c => c.toUpperCase());
+    lines.push(line);
+  }
+  return lines.join("\n");
+}
 function buildPrompt(words) {
-  return "Ты пишешь короткое неформальное сообщение в чат от первого лица (парень, разговорный стиль).\n" +
-    "Вставь ВСЕ слова из списка ниже РОВНО в этом порядке и БЕЗ ИЗМЕНЕНИЙ (не склонять, не менять окончания, ничего не пропускать).\n" +
-    "Между ними добавляй ТОЛЬКО служебные слова: предлоги, союзы, местоимения, частицы, междометия. " +
-    "НЕ добавляй никаких других существительных, глаголов, прилагательных или наречий.\n" +
-    "Можно ставить знаки препинания, смайлики из скобок и переносы строк. В ответе верни ТОЛЬКО текст сообщения.\n\n" +
-    "Слова по порядку: " + words.join(", ");
+  const numbered = words.map((w, i) => (i + 1) + ". " + w).join("\n");
+  return "Ты превращаешь список слов в короткое неформальное сообщение в чат.\n" +
+    "КРИТИЧЕСКОЕ ПРАВИЛО: все слова из списка должны быть вставлены РОВНО в указанном порядке, в точной форме, без склонения и без замены.\n" +
+    "Нельзя добавлять новые существительные, глаголы, прилагательные или наречия. Нельзя повторять слова из списка.\n" +
+    "Между словами можно добавлять только короткие связки: я, ты, мы, это, тут, там, ну, да, же, а, и, но, как бы, если честно, в общем, без шуток.\n" +
+    "Верни только готовое сообщение, без пояснений, без кавычек, без списка.\n\n" +
+    "Список слов:\n" + numbered;
 }
 
 const API_KEY_STORAGE = "uvb88_openrouter_api_key";
@@ -609,15 +659,23 @@ async function reviveText() {
     for (let attempt = 0; attempt < 3; attempt++) {
       let out;
       try { out = await callLLM(prompt); }
-      catch (e) { setStatus("Ошибка ИИ: " + e.message + " — оставил обычный вариант.", "err"); return; }
-      const extracted = (out.toLowerCase().match(/[а-яё]+/g) || []).filter(w => w in WORD2VAL);
-      if (sameWords(extracted, target)) {
-        document.getElementById("output").value = out;
-        setStatus("Оживлено ✓ — расшифровка работает как обычно.", "ok");
+      catch (e) {
+        document.getElementById("output").value = fallbackAliveText(target);
+        setStatus("Ошибка ИИ: " + e.message + " — собрал безопасный живой вариант без API.", "err");
+        return;
+      }
+
+      const direct = sameWords(extractCoverWords(out), target) ? out.trim() : "";
+      const cleaned = direct || cleanLlmOutput(out, target);
+      if (cleaned) {
+        document.getElementById("output").value = cleaned;
+        setStatus(direct ? "Оживлено ✓ — расшифровка работает как обычно." : "Оживлено и очищено ✓ — расшифровка работает как обычно.", "ok");
         return;
       }
     }
-    setStatus("ИИ не уложился в схему за 3 попытки — оставил обычный вариант.", "err");
+
+    document.getElementById("output").value = fallbackAliveText(target);
+    setStatus("ИИ нарушил схему за 3 попытки — собрал безопасный живой вариант без риска для расшифровки.", "ok");
   } finally { setReviveLoading(false); }
 }
 
