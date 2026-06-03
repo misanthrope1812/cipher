@@ -82,6 +82,36 @@
     }
     .toggle-pw:hover { color: var(--text); background: #ffffff10; }
     .toggle-pw svg { width: 22px; height: 22px; }
+
+    .ai-panel {
+      background: rgba(255,255,255,0.025); border: 1.5px solid var(--border);
+      border-radius: 14px; padding: 13px; margin: -4px 0 18px;
+    }
+    .ai-panel summary {
+      cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between;
+      gap: 10px; color: var(--text); font-size: 13.5px; font-weight: 800; user-select: none;
+    }
+    .ai-panel summary::-webkit-details-marker { display: none; }
+    .ai-summary-left { display: inline-flex; align-items: center; gap: 8px; }
+    .ai-badge {
+      display: inline-flex; align-items: center; justify-content: center; min-width: 72px;
+      border: 1px solid var(--border); border-radius: 999px; padding: 4px 9px;
+      color: var(--muted); font-family: var(--mono); font-size: 11.5px; font-weight: 700;
+    }
+    .ai-badge.saved { border-color: var(--accent); color: var(--accent); }
+    .ai-config { margin-top: 13px; display: grid; gap: 10px; }
+    .ai-help { color: var(--muted); font-size: 12.5px; margin: 0; }
+    .ai-key-row { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; }
+    .ai-key-row input { min-width: 0; }
+    .mini-btn {
+      border: 1.5px solid var(--border); background: transparent; color: var(--text);
+      border-radius: 10px; padding: 9px 12px; font-size: 13px; font-weight: 700;
+      font-family: var(--sans); cursor: pointer; min-height: 45px; transition: all .15s;
+    }
+    .mini-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .mini-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+    @media (max-width: 520px) { .ai-key-row { grid-template-columns: 1fr; } }
+
     .group { margin-bottom: 18px; }
     .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 4px 0 18px; }
     button.action {
@@ -149,6 +179,24 @@
   </div>
 
   <p class="note" id="note"></p>
+
+  <details class="ai-panel" id="aiPanel">
+    <summary>
+      <span class="ai-summary-left">✨ ИИ-оживление</span>
+      <span class="ai-badge" id="aiKeyBadge">ключ не задан</span>
+    </summary>
+    <div class="ai-config">
+      <p class="ai-help">
+        Ключ OpenRouter хранится только в этом браузере и не попадает в GitHub. Нужен для кнопки «Оживить».
+      </p>
+      <div class="ai-key-row">
+        <input id="apiKeyInput" type="password" placeholder="sk-or-..." autocomplete="off"
+               autocapitalize="off" autocorrect="off" spellcheck="false">
+        <button class="mini-btn" type="button" onclick="saveApiKey()">Сохранить</button>
+        <button class="mini-btn danger" type="button" onclick="clearApiKey()">Удалить</button>
+      </div>
+    </div>
+  </details>
 
   <div class="group">
     <div class="field-label"><span>Пароль</span></div>
@@ -434,7 +482,7 @@ const AI = {
   // ВАЖНО: Gemini НЕ работает напрямую из браузера (блокирует CORS), поэтому
   // по умолчанию используем OpenRouter — он разрешает запросы со страницы.
   provider: "openai",
-  apiKey: "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",   // <<< вставь сюда ключ OpenRouter (вида sk-or-...), бесплатно на openrouter.ai → Keys
+  apiKey: "",   // ключ НЕ вшивается в код; берётся из localStorage через getApiKey()
   openaiEndpoint: "https://openrouter.ai/api/v1/chat/completions",
   openaiModel: "meta-llama/llama-4-scout:free",
   // (Gemini оставлен на случай, если поднимешь серверный прокси; из браузера напрямую он не зовётся)
@@ -457,11 +505,53 @@ function buildPrompt(words) {
     "Можно ставить знаки препинания, смайлики из скобок и переносы строк. В ответе верни ТОЛЬКО текст сообщения.\n\n" +
     "Слова по порядку: " + words.join(", ");
 }
+
+const API_KEY_STORAGE = "uvb88_openrouter_api_key";
+function getApiKey() {
+  return localStorage.getItem(API_KEY_STORAGE) || "";
+}
+function maskApiKey(key) {
+  if (!key) return "ключ не задан";
+  if (key.length <= 12) return "ключ сохранён";
+  return key.slice(0, 6) + "…" + key.slice(-4);
+}
+function updateApiKeyUi() {
+  const key = getApiKey();
+  AI.apiKey = key;
+  const badge = document.getElementById("aiKeyBadge");
+  const input = document.getElementById("apiKeyInput");
+  if (badge) {
+    badge.textContent = key ? maskApiKey(key) : "ключ не задан";
+    badge.classList.toggle("saved", Boolean(key));
+  }
+  if (input && !input.value) input.placeholder = key ? "Ключ сохранён в этом браузере" : "sk-or-...";
+}
+function saveApiKey() {
+  const input = document.getElementById("apiKeyInput");
+  const key = (input ? input.value : "").trim();
+  if (!key) return setStatus("Вставьте API-ключ OpenRouter.", "err");
+  localStorage.setItem(API_KEY_STORAGE, key);
+  if (input) input.value = "";
+  updateApiKeyUi();
+  setStatus("API-ключ сохранён только в этом браузере.", "ok");
+  showToast("Ключ сохранён локально");
+}
+function clearApiKey() {
+  localStorage.removeItem(API_KEY_STORAGE);
+  AI.apiKey = "";
+  const input = document.getElementById("apiKeyInput");
+  if (input) input.value = "";
+  updateApiKeyUi();
+  setStatus("API-ключ удалён из этого браузера.", "ok");
+  showToast("Ключ удалён");
+}
+
 async function callLLM(prompt) {
-  if (!AI.apiKey) throw new Error("нет ключа");
+  const apiKey = getApiKey();
+  if (!apiKey) throw new Error("нет ключа");
   if (AI.provider === "gemini") {
     const url = "https://generativelanguage.googleapis.com/v1beta/models/" +
-      AI.geminiModel + ":generateContent?key=" + encodeURIComponent(AI.apiKey);
+      AI.geminiModel + ":generateContent?key=" + encodeURIComponent(apiKey);
     const r = await fetch(url, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.9, maxOutputTokens: 700 } })
@@ -471,7 +561,7 @@ async function callLLM(prompt) {
     return ((((d.candidates || [])[0] || {}).content || {}).parts || [{}])[0].text ? d.candidates[0].content.parts[0].text.trim() : "";
   } else {
     const r = await fetch(AI.openaiEndpoint, {
-      method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + AI.apiKey },
+      method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiKey },
       body: JSON.stringify({ model: AI.openaiModel, temperature: 0.9, max_tokens: 700, messages: [{ role: "user", content: prompt }] })
     });
     if (!r.ok) throw new Error("LLM HTTP " + r.status);
@@ -488,7 +578,11 @@ function setReviveLoading(on) {
 async function reviveText() {
   if (mode !== "chat") return;
   if (!lastChunks) return setStatus("Сначала зашифруйте сообщение в чат-режиме.", "err");
-  if (!AI.apiKey) return setStatus("Вставьте ключ в код (AI.apiKey).", "err");
+  if (!getApiKey()) {
+    const panel = document.getElementById("aiPanel");
+    if (panel) panel.open = true;
+    return setStatus("Вставьте API-ключ OpenRouter в блоке «ИИ-оживление» и нажмите «Сохранить».", "err");
+  }
   const target = chunksToWords(lastChunks);
   const prompt = buildPrompt(target);
   setReviveLoading(true);
@@ -619,6 +713,13 @@ function showToast(msg) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 2300);
 }
 document.getElementById("input").addEventListener("input", function () { document.getElementById("inLen").textContent = this.value.length; });
+const apiKeyInputEl = document.getElementById("apiKeyInput");
+if (apiKeyInputEl) {
+  apiKeyInputEl.addEventListener("keydown", function (event) {
+    if (event.key === "Enter") saveApiKey();
+  });
+}
+updateApiKeyUi();
 
 document.addEventListener("gesturestart", function (event) { event.preventDefault(); });
 document.addEventListener("gesturechange", function (event) { event.preventDefault(); });
