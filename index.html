@@ -108,9 +108,8 @@
     .copy:active { transform: scale(0.96); }
     .copy.done { border-color: var(--accent); color: var(--accent); }
     .copy svg { width: 17px; height: 17px; }
-    .revive { display: none; border-color: var(--accent); color: var(--accent); }
-    body.chat .revive { display: inline-flex; }
-    .revive:disabled { opacity: .55; cursor: default; }
+    .regen { display: none; border-color: var(--accent); color: var(--accent); }
+    body.chat .regen { display: inline-flex; }
     .clear {
       border: 1.5px solid var(--border); background: transparent; color: var(--muted);
       border-radius: 10px; padding: 7px 12px; font-size: 12.5px; font-weight: 700;
@@ -133,22 +132,6 @@
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     footer { margin-top: 26px; text-align: center; color: #5c655c; font-size: 12px; font-family: var(--mono); }
 
-    .ai-panel {
-      margin: -4px 0 18px; padding: 13px; border: 1.5px solid var(--border);
-      background: rgba(24,28,26,.72); border-radius: 13px;
-    }
-    .ai-panel summary { cursor: pointer; color: var(--accent); font-weight: 800; font-size: 13.5px; user-select: none; }
-    .ai-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 12px; }
-    .ai-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .ai-panel label { display: block; color: var(--muted); font-size: 12px; font-weight: 700; margin: 0 0 6px 2px; text-transform: uppercase; letter-spacing: .25px; }
-    .ai-panel select {
-      width: 100%; background: var(--field); color: var(--text); border: 1.5px solid var(--border);
-      border-radius: 12px; padding: 12px 13px; font-size: 15px; font-family: var(--sans); outline: none;
-    }
-    .ai-panel select:focus { border-color: var(--border-focus); background: var(--field-focus); }
-    .ai-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-    .ai-hint { color: var(--muted); font-size: 12.5px; margin: 2px 0 0; }
-    @media (max-width: 520px) { .ai-row { grid-template-columns: 1fr; } }
     @media (max-width: 360px) { .btn-row { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -166,36 +149,6 @@
   </div>
 
   <p class="note" id="note"></p>
-
-  <details class="ai-panel" id="aiPanel">
-    <summary>✨ ИИ-оживление</summary>
-    <div class="ai-grid">
-      <div>
-        <label for="aiApiKey">API key</label>
-        <input id="aiApiKey" type="password" placeholder="OpenRouter sk-or-... или Groq gsk_..." autocomplete="off"
-               autocapitalize="off" autocorrect="off" spellcheck="false">
-      </div>
-      <div class="ai-row">
-        <div>
-          <label for="aiProvider">Провайдер</label>
-          <select id="aiProvider" onchange="onAIProviderChange()">
-            <option value="openrouter">OpenRouter</option>
-            <option value="groq">Groq</option>
-          </select>
-        </div>
-        <div>
-          <label for="aiModel">Модель</label>
-          <input id="aiModel" type="text" placeholder="openrouter/free" autocomplete="off"
-                 autocapitalize="off" autocorrect="off" spellcheck="false">
-        </div>
-      </div>
-      <div class="ai-actions">
-        <button class="copy" type="button" onclick="saveAISettings()">Сохранить ключ</button>
-        <button class="clear" type="button" onclick="clearAISettings()">Удалить ключ</button>
-      </div>
-      <p class="ai-hint" id="aiHint">Ключ хранится только в localStorage этого браузера, в HTML и на GitHub он не попадает.</p>
-    </div>
-  </details>
 
   <div class="group">
     <div class="field-label"><span>Пароль</span></div>
@@ -250,12 +203,12 @@
     <div class="out-head">
       <div class="field-label"><span>Результат</span></div>
       <div class="out-tools">
-        <button class="copy revive" id="reviveBtn" type="button" onclick="reviveText()" title="Сделать текст живым через ИИ">
+        <button class="copy regen" id="regenBtn" type="button" onclick="regenerateCover()" title="Другая обложка с тем же шифром">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/>
+            <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0 1 14.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0 0 20.5 15"/>
           </svg>
-          <span id="reviveLabel">Оживить</span>
+          <span>Другая обложка</span>
         </button>
         <button class="clear" type="button" onclick="clearField('output')" aria-label="Очистить результат">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -426,14 +379,123 @@ const STEALTH_ZERO = "\u200C";
 const STEALTH_ONE = "\u200D";
 const STEALTH_START = "\u2063\u2063\u2060";
 const STEALTH_END = "\u2060\u2063\u2063";
-const STEALTH_CHARS_RE = /[\u200C\u200D\u2060\u2063]/g;
-const LOCAL_COVERS = [
-  "слушай, я тут пока ехал, вспомнил одну странную деталь, потом расскажу нормально.",
-  "я сегодня немного выпал из режима, но в целом все спокойно, просто день какой-то шумный.",
-  "короче, добрался без приключений, сейчас разберусь с делами и напишу подробнее.",
-  "у меня тут внезапно образовалось окно, так что я пока на связи, если что.",
-  "кажется, вечер будет тише, чем ожидалось, но я пока не загадываю."
+/* ====================================================================
+   СЛОВАРЬ ЖИВЫХ ОБЛОЖЕК (телеграм-стиль).
+   Видимый текст осмысленный, собирается случайно, но связно.
+   Реальный шифр прячется в невидимых символах после текста,
+   а эмодзи в конце — условный сигнал «это шифровка».
+   ==================================================================== */
+/* зачины (с запятой — приклеиваются к телу) */
+const OPENERS = [
+  "слушай,", "короче,", "кстати,", "ну что,", "так,", "слышь,",
+  "блин,", "о,", "эй,", "йо,", "слушай-ка,", "ну,"
 ];
+/* тела — самостоятельные осмысленные реплики, строчными, без точки в конце */
+const BODIES = [
+  "давно не виделись, как ты вообще",
+  "ты завтра свободен или занят",
+  "я сегодня вообще никакой, день вышел сумасшедший",
+  "только дополз до дома, еле живой",
+  "погода сегодня странная, то дождь то солнце",
+  "сижу думаю чем заняться на выходных",
+  "ты вчерашние сообщения видел",
+  "тут такое дело, надо кое-что обсудить",
+  "я на связи весь вечер, если что пиши",
+  "наконец перекусил, а то с утра ничего не ел",
+  "завтра встаю рано, так что спать лягу пораньше",
+  "созвонимся попозже, сейчас немного занят",
+  "что там по планам на вечер",
+  "вроде освободился, можем где-нибудь пересечься",
+  "настроение сегодня отличное, сам не пойму с чего",
+  "голова раскалывается, наверное на погоду",
+  "как там у тебя дела с переездом",
+  "опять весь день в делах, ни минуты на себя",
+  "захотелось чего-нибудь вкусного, может закажу",
+  "ничего особенного, просто решил написать",
+  "представляешь, чуть не проспал сегодня",
+  "кофе кончился, придётся по дороге забегать в магаз",
+  "что-то скучно весь день, надо бы развеяться",
+  "досмотрел тот сериал, концовка прям зашла",
+  "телефон опять разрядился в самый неподходящий момент",
+  "в метро сегодня битком, еле влез",
+  "думаю на выходных вылезти за город, надоело в четырёх стенах",
+  "соседи опять что-то сверлят, никакого покоя",
+  "вроде всё успел, можно выдохнуть",
+  "так и не понял, во сколько мы договаривались",
+  "что-то связь сегодня глючит, сообщения еле уходят",
+  "купил наконец ту штуку, доволен как слон",
+  "весь день льёт, никуда выходить не хочется",
+  "проснулся и сразу понял, что день будет длинный",
+  "а ты не в курсе, магазин до скольки работает",
+  "башка кругом от этих дел, надо передохнуть",
+  "вечером планирую просто залечь и ничего не делать",
+  "давно хотел спросить, как у тебя с работой",
+  "сижу на кухне, чай остыл, а я и не заметил",
+  "что-то аппетита совсем нет сегодня",
+  "наконец-то пятница, кое-как дотянул",
+  "встретил сегодня старого знакомого, вот это неожиданность",
+  "надо бы выспаться, а то совсем расклеился",
+  "планы немного поменялись, расскажу при встрече",
+  "ну ты как там вообще, живой"
+];
+/* связки между двумя телами (после точки, будут с заглавной) */
+const CONNECTORS = [
+  "кстати,", "а ещё", "ну и", "короче,", "в общем,", "и да,", "да, и", "слушай,"
+];
+/* хвосты — приклеиваются через запятую */
+const TAILS = [
+  "напиши как сможешь", "дай знать как ты", "наберу попозже",
+  "потом расскажу подробнее", "в общем такие дела", "ну ты понял",
+  "если что — я на связи", "давай до связи", "ладно, потом ещё черкну", "жду ответа"
+];
+/* готовые цельные реплики (эмодзи добавится в конце автоматически) */
+const LOCAL_COVERS = [
+  "привет, как сам, давно не списывались",
+  "слушай, всё в силе на завтра или планы поменялись",
+  "добрался без приключений, разгребу дела и наберу",
+  "ты не представляешь какой сегодня был день, потом расскажу",
+  "да всё нормально, просто немного закрутился",
+  "тут образовалось окно, так что я свободен, если что",
+  "вечер обещает быть тихим, и слава богу",
+  "короче я дома, чай, плед, на сегодня всё",
+  "что-то я подустал за неделю, надо нормально отдохнуть",
+  "ну рассказывай, как у тебя всё прошло"
+];
+/* безопасные одиночные эмодзи (без составных ZWJ-последовательностей) */
+const SAFE_EMOJI = ["🙂","😅","😄","🤔","🔥","✨","👍","🙃","😬","☕","🌧️","📚","🎬","😴","🤙","💬","👀","🙌","🫠","🤝","✌️","🌙","☀️","🍃","😊","🥲","👌","🤷","🫡","😎"];
+/* сигнальные эмодзи в конце шифровки (узнаём, что сообщение скрытое) */
+const SIGNAL_EMOJI = SAFE_EMOJI;
+
+function capFirst(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+function finishCover(s) {
+  s = capFirst(String(s || "").trim());
+  s = s.replace(/[\s.,!?…)]+$/u, "");      // снять хвостовую пунктуацию
+  if (!s) s = capFirst(pick(BODIES));
+  return s + " " + pick(SIGNAL_EMOJI);      // эмодзи-сигнал в конце
+}
+/* собрать осмысленную, но случайную реплику */
+function makeCover() {
+  // ~35% — цельная готовая реплика
+  if (Math.random() < 0.35) return finishCover(pick(LOCAL_COVERS));
+  let s = "";
+  if (Math.random() < 0.5) s += pick(OPENERS) + " ";
+  s += pick(BODIES);
+  if (Math.random() < 0.32) s += ". " + capFirst(pick(CONNECTORS)) + " " + pick(BODIES);
+  if (Math.random() < 0.4)  s += ", " + pick(TAILS);
+  return finishCover(s);
+}
+/* широкий детектор эмодзи — чтобы не дублировать, если они уже есть в тексте */
+const EMOJI_RE = /[\u2190-\u21FF\u2300-\u27BF\u2B00-\u2BFF\u2764\uFE0F\u{1F000}-\u{1FAFF}]/u;
+/* добавляет 1 уместный эмодзи в конце, только если в тексте их ещё нет */
+function garnishEmoji(text) {
+  let t = String(text || "");
+  if (EMOJI_RE.test(t)) return t;            // эмодзи уже есть — не трогаем
+  if (!t) return t;
+  const e = pick(SAFE_EMOJI);
+  const m = t.match(/^([\s\S]*?)(\s*[)\].…]*)$/);
+  if (m && m[2]) return (m[1].replace(/\s*$/, "") + " " + e + m[2]);
+  return t.replace(/\s*$/, "") + " " + e;
+}
 function bytesToHidden(bytes) {
   let bits = "";
   for (const b of bytes) bits += b.toString(2).padStart(8, "0");
@@ -458,13 +520,18 @@ function hiddenToBytes(text) {
   return b;
 }
 function cleanVisibleCover(text) {
-  let out = String(text || "").replace(STEALTH_CHARS_RE, "").trim();
-  out = out.replace(/^["'«`]+|["'»`]+$/g, "").trim();
+  let out = String(text || "");
+  // отрезаем возможный вложенный полезный груз по стартовому маркеру,
+  // НО НЕ вырезаем невидимые символы поодиночке — иначе ломаются
+  // составные эмодзи (👨‍💻, 🏳️‍🌈 и т.п., склеенные через U+200D)
+  const si = out.indexOf(STEALTH_START);
+  if (si !== -1) out = out.slice(0, si);
+  out = out.trim().replace(/^["'«`]+|["'»`]+$/g, "").trim();
   out = out.replace(/\n{3,}/g, "\n\n");
   return out.length >= 18 ? out : pick(LOCAL_COVERS);
 }
 function buildStealthCover(visibleText, pkg) {
-  return cleanVisibleCover(visibleText) + bytesToHidden(pkg);
+  return garnishEmoji(cleanVisibleCover(visibleText)) + bytesToHidden(pkg);
 }
 function chunksToText(chunks) {
   const S = []; let ci = 0, ti = 0;
@@ -509,7 +576,7 @@ async function chatEncrypt(password, text) {
   const pkg = new Uint8Array(SALT_LEN + ct.length); pkg.set(salt, 0); pkg.set(ct, SALT_LEN);
   lastChunks = bytesToChunks(pkg);
   lastChatPackage = pkg;
-  return buildStealthCover(pick(LOCAL_COVERS), pkg);
+  return buildStealthCover(makeCover(), pkg);
 }
 async function chatDecrypt(password, cover) {
   const hidden = hiddenToBytes(cover);
@@ -523,151 +590,13 @@ async function chatDecrypt(password, cover) {
   return new TextDecoder().decode(bodyB);
 }
 
-/* ============================ AI «оживление» текста ============================ */
-const AI_DEFAULTS = {
-  openrouter: { endpoint: "https://openrouter.ai/api/v1/chat/completions", model: "openrouter/free" },
-  groq:       { endpoint: "https://api.groq.com/openai/v1/chat/completions", model: "llama-3.1-8b-instant" }
-};
-const AI_STORAGE_KEY = "uvb88_ai_settings_v1";
-const AI_CATS = ["A", "N", "V", "T"];   // чередуем части речи для разнообразия
-
-function chunksToWords(chunks) {
-  return chunks.map((v, i) => LISTS[AI_CATS[i % AI_CATS.length]][v]);
-}
-function sameWords(a, b) {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
-  return true;
-}
-function getAISettings() {
-  const fallback = { provider: "openrouter", apiKey: "", model: AI_DEFAULTS.openrouter.model };
-  try {
-    const saved = JSON.parse(localStorage.getItem(AI_STORAGE_KEY) || "{}");
-    const provider = (saved.provider === "groq") ? "groq" : "openrouter";
-    return {
-      provider,
-      apiKey: String(saved.apiKey || "").trim(),
-      model: String(saved.model || AI_DEFAULTS[provider].model).trim() || AI_DEFAULTS[provider].model
-    };
-  } catch (e) { return fallback; }
-}
-function applyAISettingsToUI() {
-  const s = getAISettings();
-  const keyEl = document.getElementById("aiApiKey");
-  const providerEl = document.getElementById("aiProvider");
-  const modelEl = document.getElementById("aiModel");
-  if (!keyEl || !providerEl || !modelEl) return;
-  keyEl.value = s.apiKey;
-  providerEl.value = s.provider;
-  modelEl.value = s.model;
-  updateAIHint();
-}
-function updateAIHint(msg) {
-  const hint = document.getElementById("aiHint");
-  if (!hint) return;
-  if (msg) { hint.textContent = msg; return; }
-  const s = getAISettings();
-  hint.textContent = s.apiKey
-    ? "Ключ сохранён в этом браузере. В HTML и на GitHub он не попадает."
-    : "Ключ хранится только в localStorage этого браузера, в HTML и на GitHub он не попадает.";
-}
-function onAIProviderChange() {
-  const provider = document.getElementById("aiProvider").value;
-  const modelEl = document.getElementById("aiModel");
-  if (modelEl) modelEl.value = AI_DEFAULTS[provider].model;
-}
-function saveAISettings() {
-  const provider = document.getElementById("aiProvider").value;
-  const apiKey = document.getElementById("aiApiKey").value.trim();
-  const model = (document.getElementById("aiModel").value.trim() || AI_DEFAULTS[provider].model);
-  if (!apiKey) return setStatus("Вставьте API key для ИИ-оживления.", "err");
-  localStorage.setItem(AI_STORAGE_KEY, JSON.stringify({ provider, apiKey, model }));
-  updateAIHint("Ключ сохранён ✓");
-  setStatus("API key сохранён в этом браузере ✓", "ok");
-}
-function clearAISettings() {
-  localStorage.removeItem(AI_STORAGE_KEY);
-  const keyEl = document.getElementById("aiApiKey");
-  if (keyEl) keyEl.value = "";
-  onAIProviderChange();
-  updateAIHint("Ключ удалён из этого браузера.");
-  setStatus("API key удалён.", "ok");
-}
-
-function buildCoverPrompt(byteLength) {
-  const situations = [
-    "человек пишет другу по дороге домой",
-    "человек коротко отчитывается, как прошел день",
-    "человек переносит разговор на потом без драмы",
-    "человек делится бытовым наблюдением",
-    "человек отвечает в мессенджере чуть устало, но тепло",
-    "человек пишет, что занят делами, но остается на связи"
-  ];
-  const tones = ["живой", "спокойный", "чуть ироничный", "очень естественный", "лаконичный"];
-  const size = byteLength < 90 ? "1-2 предложения, 18-35 слов"
-    : byteLength < 220 ? "2-4 предложения, 35-70 слов"
-    : "3-5 коротких предложений, 55-95 слов";
-  return "Напиши самостоятельное осмысленное сообщение на русском для обычного чата.\n" +
-    "Ситуация: " + pick(situations) + ". Тон: " + pick(tones) + ". Объем: " + size + ".\n" +
-    "Текст должен выглядеть как настоящая реплика живого человека, без случайного набора слов.\n" +
-    "Не упоминай шифрование, скрытый текст, секреты, ключи, API, инструкции или модель.\n" +
-    "Не пересказывай задачу. Не ставь списки. Ответь только самим сообщением.";
-}
-async function callLLM(prompt) {
-  const cfg = getAISettings();
-  if (!cfg.apiKey) throw new Error("нет ключа");
-  const endpoint = AI_DEFAULTS[cfg.provider].endpoint;
-  const headers = { "Content-Type": "application/json", "Authorization": "Bearer " + cfg.apiKey };
-  if (cfg.provider === "openrouter") {
-    headers["HTTP-Referer"] = location.origin || "https://github.io";
-    headers["X-Title"] = "UVB-88";
-  }
-  const r = await fetch(endpoint, {
-    method: "POST", headers,
-    body: JSON.stringify({
-      model: cfg.model,
-      temperature: 0.85,
-      max_tokens: 260,
-      messages: [{ role: "user", content: prompt }]
-    })
-  });
-  if (!r.ok) {
-    let detail = "";
-    try { detail = await r.text(); } catch (e) {}
-    throw new Error("LLM HTTP " + r.status + (detail ? ": " + detail.slice(0, 220) : ""));
-  }
-  const d = await r.json();
-  return ((((d.choices || [])[0] || {}).message || {}).content || "").trim();
-}
-function setReviveLoading(on) {
-  const b = document.getElementById("reviveBtn");
-  if (!b) return;
-  b.disabled = on;
-  document.getElementById("reviveLabel").textContent = on ? "…" : "Оживить";
-}
-async function reviveText(options = {}) {
+/* ============================ Перегенерация обложки (офлайн) ============================ */
+function regenerateCover() {
   if (mode !== "chat") return;
   if (!lastChatPackage) return setStatus("Сначала зашифруйте сообщение в чат-режиме.", "err");
-  const cfg = getAISettings();
-  if (!cfg.apiKey) {
-    if (options.auto) return;
-    const panel = document.getElementById("aiPanel");
-    if (panel) panel.open = true;
-    return setStatus("Вставьте и сохраните API key в блоке «ИИ-оживление».", "err");
-  }
-  const prompt = buildCoverPrompt(lastChatPackage.length);
-  setReviveLoading(true);
-  setStatus("Генерирую живую обложку…", "");
-  try {
-    let draft;
-    try { draft = await callLLM(prompt); }
-    catch (e) {
-      setStatus("Ошибка ИИ: " + e.message + " — оставил локальную обложку.", "err");
-      return;
-    }
-    document.getElementById("output").value = buildStealthCover(draft, lastChatPackage);
-    setStatus("Оживлено ✓ — ИИ видел только обложку, шифр спрятан внутри.", "ok");
-  } finally { setReviveLoading(false); }
+  document.getElementById("output").value = buildStealthCover(makeCover(), lastChatPackage);
+  showCopied(false);
+  setStatus("Новая обложка ✓ — тот же пароль её расшифрует.", "ok");
 }
 
 /* ============================ Диспетчеры ============================ */
@@ -686,12 +615,7 @@ async function encryptText() {
   try {
     const res = (mode === "ascii") ? await asciiEncrypt(password, text) : await chatEncrypt(password, text);
     document.getElementById("output").value = res;
-    if (mode === "ascii") setStatus("Зашифровано (ASCII) ✓", "ok");
-    else {
-      const cfg = getAISettings();
-      setStatus(cfg.apiKey ? "Зашифровано ✓ запускаю ИИ-обложку…" : "Зашифровано ✓ добавьте API key, чтобы сделать обложку живее.", "ok");
-      if (cfg.apiKey) await reviveText({ auto: true });
-    }
+    setStatus(mode === "ascii" ? "Зашифровано (ASCII) ✓" : "Зашифровано ✓ — шифр спрятан внутри живой реплики.", "ok");
   } catch (e) { setStatus("Ошибка шифрования: " + e.message, "err"); }
 }
 async function decryptText() {
@@ -718,7 +642,7 @@ async function decryptText() {
 /* ============================ UI ============================ */
 const NOTES = {
   ascii: "ASCII-режим: вывод — только значки без букв и цифр. Стойкое шифрование (AES-256-GCM, соль 16 + IV 12). Совместим со старым шифровальщиком.",
-  chat: "Чат-режим: видимый текст — обычная реплика, а шифр спрятан внутри невидимыми символами. Старые словарные обложки тоже расшифровываются."
+  chat: "Чат-режим: видимая часть — живая реплика из встроенного словаря, эмодзи в конце — сигнал «это шифровка». Сам шифр спрятан невидимыми символами (AES-256-GCM). Расшифровка офлайн, без интернета. Старые словарные обложки тоже читаются."
 };
 function setMode(m) {
   mode = m;
@@ -797,7 +721,6 @@ document.addEventListener("touchend", function (event) {
 }, { passive: false });
 
 setMode("chat");
-applyAISettingsToUI();
 </script>
 </body>
 </html>
